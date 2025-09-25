@@ -1,30 +1,28 @@
-// backend/server.js
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 10000; // ✅ Port Render par défaut
 
-// Configuration CORS pour Bolt + Production
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000', 
-    'https://your-frontend-domain.com'
-  ],
-  credentials: true
+  origin: '*',
+  credentials: false
 }));
 
 app.use(express.json({ limit: '50mb' }));
 
-// Route santé pour vérifier le serveur
-app.get('/health', (req, res) => {
+// Route santé
+app.get('/', (req, res) => {
   res.json({ 
-    status: 'OK', 
-    service: 'Vision Analyzer Backend',
+    status: 'Vision Analyzer Backend is running!',
+    service: 'nano-banana proxy',
     timestamp: new Date().toISOString()
   });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', service: 'Vision Analyzer Backend' });
 });
 
 // Route proxy pour Replicate
@@ -36,13 +34,12 @@ app.post('/api/replicate', async (req, res) => {
     
     if (!REPLICATE_API_TOKEN) {
       console.error('❌ Token Replicate manquant');
-      return res.status(401).json({ error: 'Token Replicate manquant' });
+      return res.status(401).json({ error: 'Token Replicate manquant dans les variables d\'environnement' });
     }
 
     const { input } = req.body;
-    console.log('📝 Input reçu:', JSON.stringify(input, null, 2));
+    console.log('📝 Input reçu pour nano-banana');
 
-    console.log('🔄 Appel vers Replicate nano-banana...');
     const response = await fetch('https://api.replicate.com/v1/predictions', {
       method: 'POST',
       headers: {
@@ -51,7 +48,7 @@ app.post('/api/replicate', async (req, res) => {
         'Prefer': 'wait'
       },
       body: JSON.stringify({
-        model: "google/nano-banana",
+        version: "google/nano-banana",
         input: input
       })
     });
@@ -60,13 +57,13 @@ app.post('/api/replicate', async (req, res) => {
       const errorText = await response.text();
       console.error('❌ Erreur Replicate:', response.status, errorText);
       return res.status(response.status).json({ 
-        error: `Replicate Error: ${response.status} - ${errorText}` 
+        error: `Replicate Error: ${response.status}`,
+        details: errorText
       });
     }
 
     const data = await response.json();
-    console.log('✅ Prédiction créée:', data.id);
-    
+    console.log('✅ Réponse Replicate reçue:', data.id);
     res.json(data);
 
   } catch (error) {
@@ -75,13 +72,11 @@ app.post('/api/replicate', async (req, res) => {
   }
 });
 
-// Route pour vérifier le status des prédictions
+// Route pour vérifier le statut d'une prédiction
 app.get('/api/replicate/:id', async (req, res) => {
   try {
     const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
     const { id } = req.params;
-
-    console.log('🔍 Vérification status:', id);
 
     const response = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
       headers: {
@@ -90,26 +85,20 @@ app.get('/api/replicate/:id', async (req, res) => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Erreur status:', response.status, errorText);
       return res.status(response.status).json({ 
-        error: `Status Error: ${response.status} - ${errorText}` 
+        error: `Status Error: ${response.status}` 
       });
     }
 
     const data = await response.json();
-    console.log(`📊 Status ${id}: ${data.status}`);
-    
     res.json(data);
 
   } catch (error) {
-    console.error('❌ Erreur status check:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.listen(PORT, () => {
-  const url = `http://localhost:${PORT}`;
-  console.log(`🚀 Serveur Express démarré sur ${url}`);
-  console.log(`🏥 Health check disponible sur ${url}/health`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Serveur Express démarré sur port ${PORT}`);
+  console.log(`🏥 Health check disponible sur /health`);
 });
